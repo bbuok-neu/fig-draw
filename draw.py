@@ -89,7 +89,7 @@ def create_comparison_figure(
             raise ValueError(f"Prediction image {path} shape mismatch with target: {gt_array.shape} vs {pred_array.shape}")
 
         difference = np.abs(gt_array.astype(np.int16) - pred_array.astype(np.int16))
-        # Assume 0-255 pixel range maps linearly to HU with provided window width.
+        # Assumes full 0-255 pixel range maps linearly to the provided HU window width.
         heatmap_hu = difference.astype(np.float32) * (window_width_hu / MAX_PIXEL_VALUE)
 
         pred_arrays.append(pred_array)
@@ -155,7 +155,7 @@ def create_comparison_figure(
             ax.axis("off")
 
     # 差异图行
-    max_hu = np.max([heatmap.max() for heatmap in heatmaps_hu]) if heatmaps_hu else 1.0
+    max_hu = np.max([np.max(heatmap) for heatmap in heatmaps_hu]) if heatmaps_hu else 1.0
     heatmap_axes = []
     im = None
     for i, (name, _) in enumerate(predictions):
@@ -178,12 +178,8 @@ def create_comparison_figure(
 
 
 def _example_files_exist(gt_path, input_path, prediction_items):
-    def _get_path(item):
-        if isinstance(item, (list, tuple)) and len(item) == 2:
-            return item[1]
-        return item
-
-    return all(os.path.exists(p) for p in [gt_path, input_path]) and all(os.path.exists(_get_path(item)) for item in prediction_items)
+    normalized = _normalize_predictions(prediction_items)
+    return all(os.path.exists(p) for p in [gt_path, input_path]) and all(os.path.exists(path) for _, path in normalized)
 
 if __name__ == "__main__":
     # Example usage: replace the paths below with real files before running
