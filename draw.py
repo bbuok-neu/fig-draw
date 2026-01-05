@@ -97,7 +97,7 @@ def create_comparison_figure(
     if figsize is None:
         figsize = (cols * 6, 18)
 
-    fig, axes = plt.subplots(3, cols, figsize=figsize)
+    fig, axes = plt.subplots(3, cols, figsize=figsize, squeeze=False)
 
     # 第一行：输入、目标、各方法输出
     axes[0, 0].imshow(input_array, cmap="gray", vmin=0, vmax=255)
@@ -137,11 +137,13 @@ def create_comparison_figure(
             axes[1, i + 2].imshow(roi_preds_zoomed[i], cmap="gray", vmin=0, vmax=255)
             axes[1, i + 2].axis("off")
 
-        rect = Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=2, edgecolor="lightcoral", facecolor="none")
-        axes[0, 0].add_patch(rect)
-        axes[0, 1].add_patch(Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=2, edgecolor="lightcoral", facecolor="none"))
+        def _add_rect(target_ax):
+            target_ax.add_patch(Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=2, edgecolor="lightcoral", facecolor="none"))
+
+        _add_rect(axes[0, 0])
+        _add_rect(axes[0, 1])
         for i in range(len(pred_arrays)):
-            axes[0, i + 2].add_patch(Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=2, edgecolor="lightcoral", facecolor="none"))
+            _add_rect(axes[0, i + 2])
     else:
         for ax in axes[1]:
             ax.axis("off")
