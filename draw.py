@@ -47,24 +47,25 @@ def create_comparison_figure(
     figsize=None,
 ):
     """
-    绘制输入、目标、各方法输出以及差异图的对比图。
+    Build a comparison figure with input image, target image, multiple method outputs,
+    and their difference maps.
 
-    参数:
-        gt_path (str): 目标（真实）图像路径。
-        input_mr_path (str): 输入 MR 图像路径。
-        prediction_items (Iterable): 可迭代对象，元素可以是 (name, path) 或仅包含 path。
-        output_path (str): 最终对比图的保存路径。
-        output_heatmap_dir (str | None): 若提供则保存各差异图到该目录。
-        resize (tuple | None): 统一的图像尺寸，None 表示保持原尺寸。
-        roi (tuple | None): (x1, y1, x2, y2)，用于放大显示的 ROI；传 None 关闭 ROI 行。
-        zoom_factor (int): ROI 放大倍数。
-        diff_cmap (str): 差异图配色，'jet' 等彩色或 'gray' 黑白。
-    window_width_hu (float): 目标图窗宽（HU），用于推断差异图的 HU 刻度。
-    window_level_hu (float): 目标图窗位（HU），用于刻度说明。
-    figsize (tuple | None): Matplotlib 画布尺寸，None 时按方法数量自适应。
+    Args:
+        gt_path (str): Path to the target (ground-truth) image.
+        input_mr_path (str): Path to the input MR image.
+        prediction_items (Iterable): Items may be (name, path) tuples or plain paths.
+        output_path (str): Where to save the final comparison figure.
+        output_heatmap_dir (str | None): If provided, saves per-method diff maps here.
+        resize (tuple | None): Target size for all images; None keeps original size.
+        roi (tuple | None): (x1, y1, x2, y2) ROI for zoomed row; None disables ROI row.
+        zoom_factor (int): Zoom factor for ROI visualization.
+        diff_cmap (str): Colormap for difference maps (e.g., 'jet' or 'gray').
+        window_width_hu (float): Window width in HU, used for scaling pixel diffs to HU.
+        window_level_hu (float): Window level in HU, shown on the colorbar label.
+        figsize (tuple | None): Matplotlib figure size; None auto-scales by method count.
 
-    说明:
-        假设图像像素值范围 0-255 与 HU 线性对应，比例由 window_width_hu 指定。
+    Note:
+        Assumes a linear mapping from pixel range 0-255 to HU using window_width_hu.
     """
     plt.close("all")
     gc.collect()
@@ -74,7 +75,7 @@ def create_comparison_figure(
 
     predictions = _normalize_predictions(prediction_items)
     if len(predictions) == 0:
-        raise ValueError("prediction_items 不能为空")
+        raise ValueError("prediction_items cannot be empty")
 
     pred_arrays = []
     heatmaps_hu = []
