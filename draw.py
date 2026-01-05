@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 from matplotlib.patches import Rectangle
+from typing import Iterable, Tuple, Union
 
 
 MAX_PIXEL_VALUE = 255.0
@@ -33,7 +34,7 @@ def _normalize_predictions(prediction_items):
 def create_comparison_figure(
     gt_path,
     input_mr_path,
-    prediction_items,
+    prediction_items: Iterable[Union[str, Tuple[str, str]]],
     *,
     output_path="comparison.pdf",
     output_heatmap_dir=None,
@@ -149,7 +150,7 @@ def create_comparison_figure(
             ax.axis("off")
 
     # 差异图行
-    max_hu = max([heatmap.max() for heatmap in heatmaps_hu], default=1.0)
+    max_hu = np.max([heatmap.max() for heatmap in heatmaps_hu]) if heatmaps_hu else 1.0
     heatmap_axes = []
     im = None
     for i, (name, _) in enumerate(predictions):
@@ -179,7 +180,7 @@ if __name__ == "__main__":
         ("Method A", "pred1.png"),
         ("Method B", "pred2.png"),
     ]
-    if all(os.path.exists(p) for p in [example_gt, example_input] + [p for _, p in example_predictions]):
+    if all(os.path.exists(p) for p in [example_gt, example_input]) and all(os.path.exists(p) for _, p in example_predictions):
         create_comparison_figure(
             example_gt,
             example_input,
