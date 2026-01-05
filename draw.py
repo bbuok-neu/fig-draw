@@ -105,7 +105,7 @@ def create_comparison_figure(
 
     fig, axes = plt.subplots(3, cols, figsize=figsize, squeeze=False)
 
-    # 第一行：输入、目标、各方法输出
+    # Row 1: input, target, and method outputs
     axes[0, 0].imshow(input_array, cmap="gray", vmin=0, vmax=255)
     axes[0, 0].set_title("Input MR", fontsize=20)
     axes[0, 0].axis("off")
@@ -120,7 +120,7 @@ def create_comparison_figure(
         ax_pred.set_title(name, fontsize=16)
         ax_pred.axis("off")
 
-    # ROI 行
+    # ROI row
     if roi is not None:
         x1, y1, x2, y2 = roi
         roi_input = input_array[y1:y2, x1:x2]
@@ -154,7 +154,7 @@ def create_comparison_figure(
         for ax in axes[1]:
             ax.axis("off")
 
-    # 差异图行
+    # Difference maps row
     max_hu = np.max([np.max(heatmap) for heatmap in heatmaps_hu]) if heatmaps_hu else 1.0
     heatmap_axes = []
     im = None
