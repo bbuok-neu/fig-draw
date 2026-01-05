@@ -66,6 +66,8 @@ def create_comparison_figure(
     input_array = _load_grayscale(input_mr_path, resize)
 
     predictions = _normalize_predictions(prediction_items)
+    if len(predictions) == 0:
+        raise ValueError("prediction_items 不能为空")
 
     pred_arrays = []
     heatmaps_hu = []
@@ -89,8 +91,6 @@ def create_comparison_figure(
             plt.imsave(heatmap_filename, heatmap_hu, cmap=diff_cmap)
 
     cols = 2 + len(pred_arrays)
-    if cols < 2:
-        cols = 2
     if figsize is None:
         figsize = (cols * 6, 18)
 
