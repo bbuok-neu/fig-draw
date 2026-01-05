@@ -6,6 +6,9 @@ import os
 from matplotlib.patches import Rectangle
 
 
+MAX_PIXEL_VALUE = 255.0
+
+
 def _load_grayscale(path, size=None):
     """Load a grayscale image and resize if needed."""
     image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
@@ -81,7 +84,7 @@ def create_comparison_figure(
             raise ValueError(f"预测图像 {path} 与目标图尺寸不匹配: {gt_array.shape} vs {pred_array.shape}")
 
         difference = np.abs(gt_array.astype(np.int16) - pred_array.astype(np.int16))
-        heatmap_hu = difference.astype(np.float32) * (window_width_hu / 255.0)
+        heatmap_hu = difference.astype(np.float32) * (window_width_hu / MAX_PIXEL_VALUE)
 
         pred_arrays.append(pred_array)
         heatmaps_hu.append(heatmap_hu)
@@ -94,7 +97,7 @@ def create_comparison_figure(
     if figsize is None:
         figsize = (cols * 6, 18)
 
-    fig, axes = plt.subplots(3, cols, figsize=figsize, gridspec_kw={"height_ratios": [1, 1, 1]})
+    fig, axes = plt.subplots(3, cols, figsize=figsize)
 
     # 第一行：输入、目标、各方法输出
     axes[0, 0].imshow(input_array, cmap="gray", vmin=0, vmax=255)
