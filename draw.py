@@ -14,7 +14,7 @@ def _load_grayscale(path, size=None):
     """Load a grayscale image and resize if needed."""
     image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
     if image is None:
-        raise FileNotFoundError(f"无法读取图像: {path}")
+        raise FileNotFoundError(f"Unable to read image: {path}")
     if size is not None:
         image = cv2.resize(image, size)
     return np.array(image)
@@ -82,9 +82,10 @@ def create_comparison_figure(
     for idx, (name, path) in enumerate(predictions):
         pred_array = _load_grayscale(path, resize)
         if gt_array.shape != pred_array.shape:
-            raise ValueError(f"预测图像 {path} 与目标图尺寸不匹配: {gt_array.shape} vs {pred_array.shape}")
+            raise ValueError(f"Prediction image {path} shape mismatch with target: {gt_array.shape} vs {pred_array.shape}")
 
         difference = np.abs(gt_array.astype(np.int16) - pred_array.astype(np.int16))
+        # Assume 0-255 pixel range maps linearly to HU with provided window width.
         heatmap_hu = difference.astype(np.float32) * (window_width_hu / MAX_PIXEL_VALUE)
 
         pred_arrays.append(pred_array)
@@ -172,6 +173,10 @@ def create_comparison_figure(
     plt.close(fig)
 
 
+def _example_files_exist(gt_path, input_path, prediction_items):
+    return all(os.path.exists(p) for p in [gt_path, input_path]) and all(os.path.exists(p) for _, p in prediction_items)
+
+
 if __name__ == "__main__":
     # 示例：自行将路径替换为实际文件后运行
     example_gt = "ground_truth.jpg"
@@ -180,7 +185,7 @@ if __name__ == "__main__":
         ("Method A", "pred1.png"),
         ("Method B", "pred2.png"),
     ]
-    if all(os.path.exists(p) for p in [example_gt, example_input]) and all(os.path.exists(p) for _, p in example_predictions):
+    if _example_files_exist(example_gt, example_input, example_predictions):
         create_comparison_figure(
             example_gt,
             example_input,
