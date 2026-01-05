@@ -59,9 +59,12 @@ def create_comparison_figure(
         roi (tuple | None): (x1, y1, x2, y2)，用于放大显示的 ROI；传 None 关闭 ROI 行。
         zoom_factor (int): ROI 放大倍数。
         diff_cmap (str): 差异图配色，'jet' 等彩色或 'gray' 黑白。
-        window_width_hu (float): 目标图窗宽（HU），用于推断差异图的 HU 刻度。
-        window_level_hu (float): 目标图窗位（HU），用于刻度说明。
-        figsize (tuple | None): Matplotlib 画布尺寸，None 时按方法数量自适应。
+    window_width_hu (float): 目标图窗宽（HU），用于推断差异图的 HU 刻度。
+    window_level_hu (float): 目标图窗位（HU），用于刻度说明。
+    figsize (tuple | None): Matplotlib 画布尺寸，None 时按方法数量自适应。
+
+    说明:
+        假设图像像素值范围 0-255 与 HU 线性对应，比例由 window_width_hu 指定。
     """
     plt.close("all")
     gc.collect()
@@ -182,7 +185,7 @@ def _example_files_exist(gt_path, input_path, prediction_items):
     return all(os.path.exists(p) for p in [gt_path, input_path]) and all(os.path.exists(_get_path(item)) for item in prediction_items)
 
 if __name__ == "__main__":
-    # 示例：自行将路径替换为实际文件后运行
+    # Example usage: replace the paths below with real files before running
     example_gt = "ground_truth.jpg"
     example_input = "input_mr.jpg"
     example_predictions = [
