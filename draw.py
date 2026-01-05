@@ -174,8 +174,12 @@ def create_comparison_figure(
 
 
 def _example_files_exist(gt_path, input_path, prediction_items):
-    return all(os.path.exists(p) for p in [gt_path, input_path]) and all(os.path.exists(p) for _, p in prediction_items)
+    def _get_path(item):
+        if isinstance(item, (list, tuple)) and len(item) == 2:
+            return item[1]
+        return item
 
+    return all(os.path.exists(p) for p in [gt_path, input_path]) and all(os.path.exists(_get_path(item)) for item in prediction_items)
 
 if __name__ == "__main__":
     # 示例：自行将路径替换为实际文件后运行
