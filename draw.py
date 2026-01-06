@@ -176,7 +176,8 @@ def create_comparison_figure(
 
     if row_spacing is not None:
         fig.subplots_adjust(hspace=row_spacing)
-    plt.tight_layout()
+    else:
+        plt.tight_layout()
     fig.savefig(output_path, bbox_inches="tight")
     plt.close(fig)
 
