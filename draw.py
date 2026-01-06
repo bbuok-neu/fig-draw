@@ -46,6 +46,7 @@ def create_comparison_figure(
     window_level_hu=0.0,
     figsize=None,
     row_spacing=0.25,
+    col_spacing=None,
 ):
     """
     Build a comparison figure with input image, target image, multiple method outputs,
@@ -65,6 +66,7 @@ def create_comparison_figure(
         window_level_hu (float): Window level in HU, shown on the colorbar label.
         figsize (tuple | None): Matplotlib figure size; None auto-scales by method count.
         row_spacing (float | None): Vertical spacing between rows (hspace); None leaves Matplotlib default.
+        col_spacing (float | None): Horizontal spacing between columns (wspace); None leaves Matplotlib default.
 
     Note:
         Assumes a linear mapping from pixel range 0-255 to HU using window_width_hu.
@@ -174,8 +176,11 @@ def create_comparison_figure(
         cbar.set_label(f"Difference (HU)", fontsize=14)
         cbar.ax.tick_params(labelsize=12)
 
-    if row_spacing is not None:
-        fig.subplots_adjust(hspace=row_spacing)
+    if row_spacing is not None or col_spacing is not None:
+        fig.subplots_adjust(
+            hspace=row_spacing if row_spacing is not None else None,
+            wspace=col_spacing if col_spacing is not None else None,
+        )
     else:
         plt.tight_layout()
     fig.savefig(output_path, bbox_inches="tight")
