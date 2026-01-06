@@ -54,7 +54,7 @@ def create_comparison_figure(
     window_width_hu=1500.0,
     window_level_hu=0.0,
     figsize=None,
-    row_spacing=0.25,
+    row_spacing=1.25,
     col_spacing=None,
 ):
     """
@@ -181,8 +181,8 @@ def create_comparison_figure(
     axes[2, 1].axis("off")
 
     if heatmap_axes and im is not None:
-        cbar = fig.colorbar(im, ax=heatmap_axes, orientation="horizontal", fraction=0.08, pad=0.1, cax=fig.add_axes([0.05, 0.05, 0.15, 0.015]))
-        cbar.set_label(f"Difference (HU)", fontsize=14)
+        cbar = fig.colorbar(im, ax=heatmap_axes, orientation="horizontal", fraction=0.08, pad=0.1, cax=fig.add_axes([0.15, 0.14, 0.17, 0.015]))
+        # cbar.set_label(f"Difference (HU)", fontsize=14)
         cbar.ax.tick_params(labelsize=12)
 
     if row_spacing is not None or col_spacing is not None:
@@ -256,15 +256,37 @@ if __name__ == "__main__":
         ("StyleGAN", "StyleGAN.png"),
         ("ours", "ours.png"),
     ]
-    if _example_files_exist(example_gt, example_input, example_predictions):
-        create_comparison_figure(
-            example_gt,
-            example_input,
-            example_predictions,
-            output_path="comparison_example.pdf",
-            output_heatmap_dir=None,
-            diff_cmap="gray",
-            window_width_hu=1500,
-            window_level_hu=300,
-            roi=(40,100,90,150)
-        )
+    # if _example_files_exist(example_gt, example_input, example_predictions):
+    #     create_comparison_figure(
+    #         example_gt,
+    #         example_input,
+    #         example_predictions,
+    #         output_path="comparison_example.pdf",
+    #         output_heatmap_dir=None,
+    #         diff_cmap="gray",
+    #         window_width_hu=1500,
+    #         window_level_hu=300,
+    #         roi=(40,100,90,150),
+    #         row_spacing=0.1,
+    #         col_spacing=-0.3,
+    #     )
+    create_comparison_figure_from_dirs(
+        input_dir=r"C:\self-adaptive\mr2ct-paired-dataset\dataset\mr\test",
+        gt_dir=r"C:\self-adaptive\mr2ct-paired-dataset\dataset\ct\test",
+        method_dirs=[r"C:\Users\bbuok\supervised-mr2ct\zero-shot-results\EGSDE",
+                     r"C:\Users\bbuok\supervised-mr2ct\zero-shot-results\MIDiffusion",
+                     r"C:\Users\bbuok\supervised-mr2ct\zero-shot-results\FGDM-epoch160",
+                     r"C:\Users\bbuok\supervised-mr2ct\zero-shot-results\SDEdit",
+                     r"C:\Users\bbuok\supervised-mr2ct\zero-shot-results\styleGAN",
+                     r"C:\Users\bbuok\supervised-mr2ct\zero-shot-results\JiC-controlnet-joint-580"],
+        method_names=["EGSDE","MIDiffusion","FGDM","SDEdit","StyleGAN","Ours"],
+        sample_index=82,
+        output_path="comparison_from_dirs_example.pdf",
+        output_heatmap_dir=None,
+        diff_cmap="gray",
+        window_width_hu=1500,
+        window_level_hu=300,
+        roi=(40,100,90,150),
+        row_spacing=0.1,
+        col_spacing=-0.3,
+    )
