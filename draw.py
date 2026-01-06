@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 from matplotlib.patches import Rectangle
+import re
 from typing import Iterable, Tuple, Union
 
 
@@ -29,6 +30,14 @@ def _normalize_predictions(prediction_items):
         else:
             normalized.append((f"Pred {idx + 1}", item))
     return normalized
+
+
+def _natsorted_file_list(directory, exts=(".png", ".jpg", ".jpeg")):
+    files = [f for f in os.listdir(directory) if f.lower().endswith(exts)]
+    def _key(s):
+        parts = re.split(r"(\d+)", s)
+        return [int(p) if p.isdigit() else p.lower() for p in parts]
+    return sorted([os.path.join(directory, f) for f in files], key=lambda p: _key(os.path.basename(p)))
 
 
 def create_comparison_figure(
@@ -190,6 +199,50 @@ def create_comparison_figure(
 def _example_files_exist(gt_path, input_path, prediction_items):
     normalized = _normalize_predictions(prediction_items)
     return all(os.path.exists(p) for p in [gt_path, input_path]) and all(os.path.exists(path) for _, path in normalized)
+
+
+def create_comparison_figure_from_dirs(
+    input_dir,
+    gt_dir,
+    method_dirs,
+    *,
+    sample_index=0,
+    method_names=None,
+    **kwargs,
+):
+    """
+    Load input/gt/method outputs from directories (natsorted), pick one index, and plot.
+    Args:
+        input_dir (str): Directory containing input images.
+        gt_dir (str): Directory containing ground truth images.
+        method_dirs (list[str]): Directories for each method output; all must have same file count.
+        sample_index (int): Zero-based index (after natsort) of the sample to visualize.
+        method_names (list[str] | None): Optional names matching method_dirs; defaults to dir basenames.
+        **kwargs: Passed through to create_comparison_figure.
+    """
+    input_files = _natsorted_file_list(input_dir)
+    gt_files = _natsorted_file_list(gt_dir)
+    method_files = [_natsorted_file_list(d) for d in method_dirs]
+
+    counts = {len(input_files), len(gt_files), *[len(m) for m in method_files]}
+    if len(counts) != 1:
+        raise ValueError(f"Directory image counts mismatch: {counts}")
+    total = counts.pop()
+    if sample_index < 0 or sample_index >= total:
+        raise IndexError(f"sample_index {sample_index} out of range for {total} images")
+
+    if method_names is None:
+        method_names = [os.path.basename(os.path.normpath(d)) or f"Method {i+1}" for i, d in enumerate(method_dirs)]
+    if len(method_names) != len(method_dirs):
+        raise ValueError("method_names length must match method_dirs length")
+
+    prediction_items = [(name, files[sample_index]) for name, files in zip(method_names, method_files)]
+    create_comparison_figure(
+        gt_path=gt_files[sample_index],
+        input_mr_path=input_files[sample_index],
+        prediction_items=prediction_items,
+        **kwargs,
+    )
 
 if __name__ == "__main__":
     # Example usage: replace the paths below with real files before running
