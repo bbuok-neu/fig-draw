@@ -107,17 +107,17 @@ def create_comparison_figure(
 
     # Row 1: input, target, and method outputs
     axes[0, 0].imshow(input_array, cmap="gray", vmin=0, vmax=255)
-    axes[0, 0].set_title("Input MR", fontsize=20)
+    axes[0, 0].set_title("Input MR", fontsize=30)
     axes[0, 0].axis("off")
 
     axes[0, 1].imshow(gt_array, cmap="gray", vmin=0, vmax=255)
-    axes[0, 1].set_title("Ground Truth CT", fontsize=20)
+    axes[0, 1].set_title("Ground Truth CT", fontsize=30)
     axes[0, 1].axis("off")
 
     for i, (name, _) in enumerate(predictions):
         ax_pred = axes[0, i + 2]
         ax_pred.imshow(pred_arrays[i], cmap="gray", vmin=0, vmax=255)
-        ax_pred.set_title(name, fontsize=16)
+        ax_pred.set_title(name, fontsize=30)
         ax_pred.axis("off")
 
     # ROI row
@@ -160,7 +160,7 @@ def create_comparison_figure(
     im = None
     for i, (name, _) in enumerate(predictions):
         im = axes[2, i + 2].imshow(heatmaps_hu[i], cmap=diff_cmap, vmin=0, vmax=max_hu)
-        axes[2, i + 2].set_title(f"{name} Δ", fontsize=16)
+        # axes[2, i + 2].set_title(f"{name} Δ", fontsize=16)
         axes[2, i + 2].axis("off")
         heatmap_axes.append(axes[2, i + 2])
 
@@ -168,8 +168,8 @@ def create_comparison_figure(
     axes[2, 1].axis("off")
 
     if heatmap_axes and im is not None:
-        cbar = fig.colorbar(im, ax=heatmap_axes, orientation="horizontal", fraction=0.05, pad=0.1)
-        cbar.set_label(f"Difference (HU)  |  WW={window_width_hu}, WL={window_level_hu}", fontsize=14)
+        cbar = fig.colorbar(im, ax=heatmap_axes, orientation="horizontal", fraction=0.08, pad=0.1, cax=fig.add_axes([0.05, 0.05, 0.15, 0.015]))
+        cbar.set_label(f"Difference (HU)", fontsize=14)
         cbar.ax.tick_params(labelsize=12)
 
     plt.tight_layout()
@@ -186,8 +186,12 @@ if __name__ == "__main__":
     example_gt = "ground_truth.jpg"
     example_input = "input_mr.jpg"
     example_predictions = [
-        ("Method A", "pred1.png"),
-        ("Method B", "pred2.png"),
+        ("EGSDE", "EGSDE.jpg"),
+        ("MIDiffusion", "MIDiffusion.png"),
+        ("FGDM", "FGDM.jpg"),
+        ("SDEdit", "SDEdit.png"),
+        ("StyleGAN", "StyleGAN.png"),
+        ("ours", "ours.png"),
     ]
     if _example_files_exist(example_gt, example_input, example_predictions):
         create_comparison_figure(
@@ -196,7 +200,8 @@ if __name__ == "__main__":
             example_predictions,
             output_path="comparison_example.pdf",
             output_heatmap_dir=None,
-            diff_cmap="jet",
+            diff_cmap="gray",
             window_width_hu=1500,
-            window_level_hu=0,
+            window_level_hu=300,
+            roi=(40,100,90,150)
         )
