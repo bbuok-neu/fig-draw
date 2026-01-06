@@ -1,275 +1,292 @@
 import cv2
+import gc
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-import gc
 from matplotlib.patches import Rectangle
+import re
+from typing import Iterable, Tuple, Union
 
-def calculate_and_display_heatmaps(gt_path, input_mr_path, prediction_paths, output_dir="heatmaps"):
+
+MAX_PIXEL_VALUE = 255.0
+
+
+def _load_grayscale(path, size=None):
+    """Load a grayscale image and resize if needed."""
+    image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+    if image is None:
+        raise FileNotFoundError(f"Unable to read image: {path}")
+    if size is not None:
+        image = cv2.resize(image, size)
+    return np.array(image)
+
+
+def _normalize_predictions(prediction_items):
+    """Return a list of (name, path) pairs."""
+    normalized = []
+    for idx, item in enumerate(prediction_items):
+        if isinstance(item, (list, tuple)) and len(item) == 2:
+            normalized.append((str(item[0]), item[1]))
+        else:
+            normalized.append((f"Pred {idx + 1}", item))
+    return normalized
+
+
+def _natsorted_file_list(directory, exts=(".png", ".jpg", ".jpeg")):
+    files = [f for f in os.listdir(directory) if f.lower().endswith(exts)]
+    def _key(s):
+        parts = re.split(r"(\d+)", s)
+        return [int(p) if p.isdigit() else p.lower() for p in parts]
+    return sorted([os.path.join(directory, f) for f in files], key=lambda p: _key(os.path.basename(p)))
+
+
+def create_comparison_figure(
+    gt_path,
+    input_mr_path,
+    prediction_items: Iterable[Union[str, Tuple[str, str]]],
+    *,
+    output_path="comparison.pdf",
+    output_heatmap_dir=None,
+    resize=(256, 256),
+    roi=(20, 80, 70, 130),
+    zoom_factor=3,
+    diff_cmap="jet",
+    window_width_hu=1500.0,
+    window_level_hu=0.0,
+    figsize=None,
+    row_spacing=1.25,
+    col_spacing=None,
+):
     """
-    计算并显示预测图像与真实值图像之间的差异热力图。
+    Build a comparison figure with input image, target image, multiple method outputs,
+    and their difference maps.
 
-    参数:
-        gt_path (str): 真实值图像的路径。
-        input_mr_path (str): 输入MR图像的路径
-        prediction_paths (list): 包含9个预测图像路径的列表。
-        output_dir (str): 保存热力图的目录，默认为 "heatmaps"。
+    Args:
+        gt_path (str): Path to the target (ground-truth) image.
+        input_mr_path (str): Path to the input MR image.
+        prediction_items (Iterable): Items may be (name, path) tuples or plain paths.
+        output_path (str): Where to save the final comparison figure.
+        output_heatmap_dir (str | None): If provided, saves per-method diff maps here.
+        resize (tuple | None): Target size for all images; None keeps original size.
+        roi (tuple | None): (x1, y1, x2, y2) ROI for zoomed row; None disables ROI row.
+        zoom_factor (int): Zoom factor for ROI visualization.
+        diff_cmap (str): Colormap for difference maps (e.g., 'jet' or 'gray').
+        window_width_hu (float): Window width in HU, used for scaling pixel diffs to HU.
+        window_level_hu (float): Window level in HU, shown on the colorbar label.
+        figsize (tuple | None): Matplotlib figure size; None auto-scales by method count.
+        row_spacing (float | None): Vertical spacing between rows (hspace); None leaves Matplotlib default.
+        col_spacing (float | None): Horizontal spacing between columns (wspace); None leaves Matplotlib default.
+
+    Note:
+        Assumes a linear mapping from pixel range 0-255 to HU using window_width_hu.
     """
-
-    # 读取真实值图像
-    gt_image = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)  # 转换为灰度图像
-    gt_image = cv2.resize(gt_image, (256,256))
-    gt_array = np.array(gt_image)
-
-    # 读取输入MR图像
-    input_image = cv2.imread(input_mr_path, cv2.IMREAD_GRAYSCALE)  # 转换为灰度图像
-    input_image = cv2.resize(input_image, (256, 256))
-    input_array = np.array(input_image)
-
-    # 创建输出目录
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    # 存储热力图
-    heatmaps = []
-
-    # 循环处理每个预测图像
-    for i, pred_path in enumerate(prediction_paths):
-        # 读取预测图像
-        pred_image = cv2.imread(pred_path, cv2.IMREAD_GRAYSCALE)  # 转换为灰度图像
-        pred_array = np.array(pred_image)
-
-        # 确保图像大小相同
-        if gt_array.shape != pred_array.shape:
-            print(f"警告: 预测图像 {pred_path} 的大小与真实值图像不匹配。跳过此图像。")
-            continue
-
-        # 计算差值并取绝对值
-        difference = np.abs((gt_array).astype(np.int16) - pred_array.astype(np.int16))
-        difference = (difference).astype(np.uint8)
-
-        # 归一化
-        # difference = (difference - np.min(difference)) / (np.max(difference) - np.min(difference))
-
-        heatmaps.append(difference)
-
-        # 保存热力图
-        heatmap_filename = os.path.join(output_dir, f"heatmap_{i + 1}.png")
-        plt.imsave(heatmap_filename, difference, cmap="jet")
-
-        # 显示图像
-        fig, axes = plt.subplots(2, 11, figsize=(44, 9))
-
-        # 显示输入MR图像 (放大)
-        axes[0][0].imshow(input_array, cmap="gray")
-        axes[0][0].set_title("Input MR")
-        axes[0][0].axis("off")
-        axes[0][0].set_position([0.065, 0.55, 0.07, 0.4])
-
-        # 显示真实值图像 (放大)
-        axes[0][1].imshow(gt_array, cmap="gray")
-        axes[0][1].set_title("Ground Truth")
-        axes[0][1].axis("off")
-        axes[0][1].set_position([0.14, 0.55, 0.07, 0.4])
-
-        # 显示各个模型输出的图像
-        for i in range(len(heatmaps)):
-            axes[0][i + 2].imshow(cv2.imread(prediction_paths[i], cv2.IMREAD_GRAYSCALE), cmap='gray')
-            axes[0][i + 2].set_title(f"Pred {i + 1}", fontsize=8)
-            axes[0][i + 2].axis('off')
-            axes[0][i + 2].set_position([0.23 + 0.075 * i, 0.55, 0.07, 0.4])
-
-        # 显示热力图
-        for i in range(len(heatmaps)):
-            im = axes[1][i + 2].imshow(heatmaps[i], cmap="jet")
-            axes[1][i + 2].set_title(f"Heatmap {i + 1}", fontsize=8)
-            axes[1][i + 2].axis("off")
-            axes[1][i + 2].set_position([0.23 + 0.075 * i, 0.05, 0.07, 0.4])  # 与Pred图x坐标相同
-
-        # 隐藏多余的子图
-        axes[0][-1].axis("off")
-        axes[1][0].axis("off")
-        axes[1][1].axis("off")
-
-        # 添加一个共享的颜色条
-        cax = fig.add_axes([0.23, 0.05, 0.67, 0.03])  # [左, 下, 宽, 高]
-        cbar = fig.colorbar(im, cax=cax, orientation='horizontal')
-        cbar.ax.tick_params(labelsize=8)
-
-        # plt.show()
-        # plt.close('all')
-        # gc.collect()
-
-
-def calculate_and_display_heatmaps_2(gt_path, input_mr_path, prediction_paths, output_dir="heatmaps"):
-    plt.close('all')
+    plt.close("all")
     gc.collect()
 
-    gt_image = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)  # 转换为灰度图像
-    gt_image = cv2.resize(gt_image, (256, 256))
-    gt_array = np.array(gt_image)
+    gt_array = _load_grayscale(gt_path, resize)
+    input_array = _load_grayscale(input_mr_path, resize)
 
-    # 读取输入MR图像
-    input_image = cv2.imread(input_mr_path, cv2.IMREAD_GRAYSCALE)  # 转换为灰度图像
-    input_image = cv2.resize(input_image, (256, 256))
-    input_array = np.array(input_image)
+    predictions = _normalize_predictions(prediction_items)
+    if len(predictions) == 0:
+        raise ValueError("prediction_items cannot be empty")
 
-    # 创建输出目录
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    pred_arrays = []
+    heatmaps_hu = []
 
-    # 存储热力图
-    heatmaps = []
-    heatmaps_raw = []
+    if output_heatmap_dir:
+        os.makedirs(output_heatmap_dir, exist_ok=True)
 
-    # 循环处理每个预测图像
-    for i, pred_path in enumerate(prediction_paths):
-        # 读取预测图像
-        pred_image = cv2.imread(pred_path, cv2.IMREAD_GRAYSCALE)  # 转换为灰度图像
-        pred_array = np.array(pred_image)
-
-        # 确保图像大小相同
+    for idx, (name, path) in enumerate(predictions):
+        pred_array = _load_grayscale(path, resize)
         if gt_array.shape != pred_array.shape:
-            print(f"警告: 预测图像 {pred_path} 的大小与真实值图像不匹配。跳过此图像。")
-            continue
+            raise ValueError(f"Prediction image {path} shape mismatch with target: {gt_array.shape} vs {pred_array.shape}")
 
-        # 计算差值并取绝对值
-        difference = np.abs((gt_array).astype(np.int16) - pred_array.astype(np.int16))
-        difference = (difference).astype(np.uint8)
+        difference = np.abs(gt_array.astype(np.int16) - pred_array.astype(np.int16))
+        # Assumes full 0-255 pixel range maps linearly to the provided HU window width.
+        heatmap_hu = difference.astype(np.float32) * (window_width_hu / MAX_PIXEL_VALUE)
 
-        # 归一化
-        # difference = (difference - np.min(difference)) / (np.max(difference) - np.min(difference))
+        pred_arrays.append(pred_array)
+        heatmaps_hu.append(heatmap_hu)
 
-        heatmaps.append(difference)
-        heatmaps_raw.append(np.round(difference.astype(np.float32) * 5.859375).astype(np.int32))
-        # 保存热力图
-        heatmap_filename = os.path.join(output_dir, f"heatmap_{i + 1}.png")
-        plt.imsave(heatmap_filename, difference, cmap="jet")
+        if output_heatmap_dir:
+            heatmap_filename = os.path.join(output_heatmap_dir, f"heatmap_{idx + 1}.png")
+            plt.imsave(heatmap_filename, heatmap_hu, cmap=diff_cmap)
 
-    heatmaps_norm = []
-    hmax = heatmaps[0].max()
-    hmin = heatmaps[0].min()
-    for i in range(len(heatmaps)):
-        if heatmaps[i].max() > hmax:
-            hmax = heatmaps[i].max()
-        if heatmaps[i].min() < hmin:
-            hmin = heatmaps[i].min()
-    for i in range(len(heatmaps)):
-        heatmaps_norm.append(255*((heatmaps[i] - hmin ) / (hmax - hmin)))
+    cols = 2 + len(pred_arrays)
+    if figsize is None:
+        figsize = (cols * 6, 18)
 
+    fig, axes = plt.subplots(3, cols, figsize=figsize, squeeze=False)
 
-    name_list = ['CycleGAN','UNIT','CUT','Reg-GAN','AttentionGAN','SC-CycleGAN','DC-CycleGAN','UVCGAN', 'Pix2pix', 'Ours']
+    # Row 1: input, target, and method outputs
+    axes[0, 0].imshow(input_array, cmap="gray", vmin=0, vmax=255)
+    axes[0, 0].set_title("Input MR", fontsize=30)
+    axes[0, 0].axis("off")
 
-    x1, y1 = 20, 80
-    x2, y2 = 70, 130
+    axes[0, 1].imshow(gt_array, cmap="gray", vmin=0, vmax=255)
+    axes[0, 1].set_title("Ground Truth CT", fontsize=30)
+    axes[0, 1].axis("off")
 
-    # 放大倍数
-    zoom_factor = 3
+    for i, (name, _) in enumerate(predictions):
+        ax_pred = axes[0, i + 2]
+        ax_pred.imshow(pred_arrays[i], cmap="gray", vmin=0, vmax=255)
+        ax_pred.set_title(name, fontsize=30)
+        ax_pred.axis("off")
 
+    # ROI row
+    if roi is not None:
+        x1, y1, x2, y2 = roi
+        roi_input = input_array[y1:y2, x1:x2]
+        roi_gt = gt_array[y1:y2, x1:x2]
+        roi_preds = [pred[y1:y2, x1:x2] for pred in pred_arrays]
 
-    fig = plt.figure(figsize=(72, 21))
-    gs = plt.GridSpec(3, 12, width_ratios=[1] * 12, height_ratios=[1, 1, 1])
+        roi_input_zoomed = cv2.resize(roi_input, None, fx=zoom_factor, fy=zoom_factor, interpolation=cv2.INTER_LINEAR)
+        roi_gt_zoomed = cv2.resize(roi_gt, None, fx=zoom_factor, fy=zoom_factor, interpolation=cv2.INTER_LINEAR)
+        roi_preds_zoomed = [
+            cv2.resize(roi_pred, None, fx=zoom_factor, fy=zoom_factor, interpolation=cv2.INTER_LINEAR)
+            for roi_pred in roi_preds
+        ]
 
-    # 显示输入MR图像
-    ax_input = plt.subplot(gs[0, 0])
-    ax_input.imshow(input_array, cmap="gray")
-    ax_input.set_title("Input MR", fontsize=48)
-    ax_input.axis("off")
+        axes[1, 0].imshow(roi_input_zoomed, cmap="gray", vmin=0, vmax=255)
+        axes[1, 0].axis("off")
+        axes[1, 1].imshow(roi_gt_zoomed, cmap="gray", vmin=0, vmax=255)
+        axes[1, 1].axis("off")
 
-    # 显示真实值图像
-    ax_gt = plt.subplot(gs[0, 1])
-    ax_gt.imshow(gt_array, cmap="gray")
-    ax_gt.set_title("Ground Truth CT", fontsize=48)
-    ax_gt.axis("off")
+        for i, (name, _) in enumerate(predictions):
+            axes[1, i + 2].imshow(roi_preds_zoomed[i], cmap="gray", vmin=0, vmax=255)
+            axes[1, i + 2].axis("off")
 
-    # 显示各个模型输出的图像
-    for i in range(len(heatmaps)):
-        ax_pred = plt.subplot(gs[0, i + 2])
-        ax_pred.imshow(cv2.imread(prediction_paths[i], cv2.IMREAD_GRAYSCALE), cmap='gray')
-        ax_pred.set_title(name_list[i], fontsize=48)
-        ax_pred.axis('off')
+        def _add_rect(target_ax):
+            target_ax.add_patch(Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=2, edgecolor="lightcoral", facecolor="none"))
 
+        _add_rect(axes[0, 0])
+        _add_rect(axes[0, 1])
+        for i in range(len(pred_arrays)):
+            _add_rect(axes[0, i + 2])
+    else:
+        for ax in axes[1]:
+            ax.axis("off")
 
-    roi_input = input_array[y1:y2, x1:x2]
-    roi_gt = gt_array[y1:y2, x1:x2]
-    roi_heatmaps = [heatmap[y1:y2, x1:x2] for heatmap in heatmaps]
-    roi_preds = [cv2.imread(prediction_paths[i], cv2.IMREAD_GRAYSCALE)[y1:y2, x1:x2] for i in range(len(heatmaps))]
+    # Difference maps row
+    max_hu = np.max([np.max(heatmap) for heatmap in heatmaps_hu]) if heatmaps_hu else 1.0
+    heatmap_axes = []
+    im = None
+    for i, (name, _) in enumerate(predictions):
+        im = axes[2, i + 2].imshow(heatmaps_hu[i], cmap=diff_cmap, vmin=0, vmax=max_hu)
+        # axes[2, i + 2].set_title(f"{name} Δ", fontsize=16)
+        axes[2, i + 2].axis("off")
+        heatmap_axes.append(axes[2, i + 2])
 
-    roi_input_zoomed = cv2.resize(roi_input, None, fx=zoom_factor, fy=zoom_factor, interpolation=cv2.INTER_LINEAR)
-    roi_gt_zoomed = cv2.resize(roi_gt, None, fx=zoom_factor, fy=zoom_factor, interpolation=cv2.INTER_LINEAR)
-    roi_heatmaps_zoomed = [cv2.resize(roi_heatmap, None, fx=zoom_factor, fy=zoom_factor, interpolation=cv2.INTER_LINEAR)
-                           for roi_heatmap in roi_heatmaps]
-    roi_preds_zoomed = [cv2.resize(roi_pred, None, fx=zoom_factor, fy=zoom_factor, interpolation=cv2.INTER_LINEAR) for
-                        roi_pred in roi_preds]
+    axes[2, 0].axis("off")
+    axes[2, 1].axis("off")
 
-    ax_roi_input = plt.subplot(gs[1, 0])  # 调换到第二行
-    ax_roi_input.imshow(roi_input_zoomed, cmap="gray",vmin=0, vmax=255)
-    # ax_roi_input.set_title("Input MR (Zoomed)", fontsize=8)
-    ax_roi_input.axis("off")
-    rect = Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=4, edgecolor='lightcoral', facecolor='none')
-    ax_input.add_patch(rect)
+    if heatmap_axes and im is not None:
+        cbar = fig.colorbar(im, ax=heatmap_axes, orientation="horizontal", fraction=0.08, pad=0.1, cax=fig.add_axes([0.15, 0.14, 0.17, 0.015]))
+        # cbar.set_label(f"Difference (HU)", fontsize=14)
+        cbar.ax.tick_params(labelsize=12)
 
-    ax_roi_gt = plt.subplot(gs[1, 1])  # 调换到第二行
-    ax_roi_gt.imshow(roi_gt_zoomed, cmap="gray", vmin=0, vmax=255)
-    # ax_roi_gt.set_title("GT CT (Zoomed)", fontsize=8)
-    ax_roi_gt.axis("off")
-    rect = Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=4, edgecolor='lightcoral', facecolor='none')
-    ax_gt.add_patch(rect)
-
-    for i in range(len(heatmaps)):
-        ax_roi_pred = plt.subplot(gs[1, i + 2])  # 调换到第二行
-        ax_roi_pred.imshow(roi_preds_zoomed[i], cmap='gray',vmin=0, vmax=255)
-        # ax_roi_pred.set_title(f"Pred {i + 1} (Zoomed)", fontsize=8)
-        ax_roi_pred.axis("off")
-        rect = Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=4, edgecolor='lightcoral', facecolor='none')
-        plt.subplot(gs[0, i + 2]).add_patch(rect)  # 在原图上添加roi框
-
-    # 显示热力图
-    for i in range(len(heatmaps)):
-        ax_heatmap = plt.subplot(gs[2, i + 2])  # 调换到第三行
-        im = ax_heatmap.imshow(heatmaps_norm[i], cmap="gray")
-        # ax_heatmap.set_title(f"Heatmap {i + 1}", fontsize=8)
-        ax_heatmap.axis("off")
-
-    # 隐藏多余的子图
-    for j in range(2):
-        plt.subplot(gs[2, j]).axis("off")
-
-    # 添加一个共享的颜色条
-    colorbar_axes_position = [0.01, 0.07, 0.15, 0.015]  # [left, bottom, width, height]
-    cax = fig.add_axes(colorbar_axes_position)
-    cbar = fig.colorbar(im, cax=cax, orientation='horizontal')
-    cbar.ax.tick_params(labelsize=8)
-    ticks = cbar.get_ticks()
-
-    # 计算缩放后的 HU 值刻度
-    max_hu = (1500) / 255  # 假设所有热图的最大 HU 值相同
-    hu_ticks = [round(tick * max_hu) for tick in ticks]
-
-    # 设置刻度标签，并添加 "HU" 单位
-    cbar.ax.set_xticklabels(['{:.0f}'.format(hu_tick) for hu_tick in hu_ticks])
-    cbar.ax.tick_params(labelsize=36)
-
-    plt.tight_layout()
-    # plt.show()
-    plt.savefig('output_8_24.pdf')
+    if row_spacing is not None or col_spacing is not None:
+        fig.subplots_adjust(
+            hspace=row_spacing if row_spacing is not None else None,
+            wspace=col_spacing if col_spacing is not None else None,
+        )
+    else:
+        plt.tight_layout()
+    fig.savefig(output_path, bbox_inches="tight")
+    plt.close(fig)
 
 
-# 示例用法
-gt_path = "ground_truth.jpg"  # 替换为真实值图像的路径 (JPG 或 PNG)
-input_mr_path = "input_mr.jpg"  # 替换为输入MR图像的路径 (JPG 或 PNG)
-prediction_paths = [
-    "pred1.png",
-    "pred2.jpg",
-    "pred3.png",
-    "pred4.jpg",
-    "pred5.png",
-    "pred6.jpg",
-    "pred7.jpg",
-    "pred8.png",
-    "pred9.png",
-    # "pred10.jpg",
-    "generated_ct_34.png",
-]
+def _example_files_exist(gt_path, input_path, prediction_items):
+    normalized = _normalize_predictions(prediction_items)
+    return all(os.path.exists(p) for p in [gt_path, input_path]) and all(os.path.exists(path) for _, path in normalized)
 
-calculate_and_display_heatmaps_2(gt_path, input_mr_path, prediction_paths)
+
+def create_comparison_figure_from_dirs(
+    input_dir,
+    gt_dir,
+    method_dirs,
+    *,
+    sample_index=0,
+    method_names=None,
+    **kwargs,
+):
+    """
+    Load input/gt/method outputs from directories (natsorted), pick one index, and plot.
+    Args:
+        input_dir (str): Directory containing input images.
+        gt_dir (str): Directory containing ground truth images.
+        method_dirs (list[str]): Directories for each method output; all must have same file count.
+        sample_index (int): Zero-based index (after natsort) of the sample to visualize.
+        method_names (list[str] | None): Optional names matching method_dirs; defaults to dir basenames.
+        **kwargs: Passed through to create_comparison_figure.
+    """
+    input_files = _natsorted_file_list(input_dir)
+    gt_files = _natsorted_file_list(gt_dir)
+    method_files = [_natsorted_file_list(d) for d in method_dirs]
+
+    counts = {len(input_files), len(gt_files), *[len(m) for m in method_files]}
+    if len(counts) != 1:
+        raise ValueError(f"Directory image counts mismatch: {counts}")
+    total = counts.pop()
+    if sample_index < 0 or sample_index >= total:
+        raise IndexError(f"sample_index {sample_index} out of range for {total} images")
+
+    if method_names is None:
+        method_names = [os.path.basename(os.path.normpath(d)) or f"Method {i+1}" for i, d in enumerate(method_dirs)]
+    if len(method_names) != len(method_dirs):
+        raise ValueError("method_names length must match method_dirs length")
+
+    prediction_items = [(name, files[sample_index]) for name, files in zip(method_names, method_files)]
+    create_comparison_figure(
+        gt_path=gt_files[sample_index],
+        input_mr_path=input_files[sample_index],
+        prediction_items=prediction_items,
+        **kwargs,
+    )
+
+if __name__ == "__main__":
+    # Example usage: replace the paths below with real files before running
+    example_gt = "ground_truth.jpg"
+    example_input = "input_mr.jpg"
+    example_predictions = [
+        ("EGSDE", "EGSDE.jpg"),
+        ("MIDiffusion", "MIDiffusion.png"),
+        ("FGDM", "FGDM.jpg"),
+        ("SDEdit", "SDEdit.png"),
+        ("StyleGAN", "StyleGAN.png"),
+        ("ours", "ours.png"),
+    ]
+    # if _example_files_exist(example_gt, example_input, example_predictions):
+    #     create_comparison_figure(
+    #         example_gt,
+    #         example_input,
+    #         example_predictions,
+    #         output_path="comparison_example.pdf",
+    #         output_heatmap_dir=None,
+    #         diff_cmap="gray",
+    #         window_width_hu=1500,
+    #         window_level_hu=300,
+    #         roi=(40,100,90,150),
+    #         row_spacing=0.1,
+    #         col_spacing=-0.3,
+    #     )
+    create_comparison_figure_from_dirs(
+        input_dir=r"C:\self-adaptive\mr2ct-paired-dataset\dataset\mr\test",
+        gt_dir=r"C:\self-adaptive\mr2ct-paired-dataset\dataset\ct\test",
+        method_dirs=[r"C:\Users\bbuok\supervised-mr2ct\zero-shot-results\EGSDE",
+                     r"C:\Users\bbuok\supervised-mr2ct\zero-shot-results\MIDiffusion",
+                     r"C:\Users\bbuok\supervised-mr2ct\zero-shot-results\FGDM-epoch160",
+                     r"C:\Users\bbuok\supervised-mr2ct\zero-shot-results\SDEdit",
+                     r"C:\Users\bbuok\supervised-mr2ct\zero-shot-results\styleGAN",
+                     r"C:\Users\bbuok\supervised-mr2ct\zero-shot-results\JiC-controlnet-joint-580"],
+        method_names=["EGSDE","MIDiffusion","FGDM","SDEdit","StyleGAN","Ours"],
+        sample_index=82,
+        output_path="comparison_from_dirs_example.pdf",
+        output_heatmap_dir=None,
+        diff_cmap="gray",
+        window_width_hu=1500,
+        window_level_hu=300,
+        roi=(40,100,90,150),
+        row_spacing=0.1,
+        col_spacing=-0.3,
+    )
